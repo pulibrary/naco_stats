@@ -5,3 +5,4 @@ conf/
 *.json
 *.cfg
 *.bak
+*.log
