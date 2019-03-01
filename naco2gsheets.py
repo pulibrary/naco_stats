@@ -26,12 +26,13 @@ this_month = time.strftime('%Y%m')
 
 scopes = 'https://www.googleapis.com/auth/drive.metadata.readonly'
 
-temp_nafprod_file = './naf_prod_temp.csv' # to check all that have been produced
-file_location = '/mnt/lib-tsserver/catdiv/NACO/' # with txt files output by macros
-log = './logs/'
-conf_dir = './conf/'
 config = ConfigParser.RawConfigParser()
-config.read(conf_dir+'sheet_ids.conf')
+config.read(conf_dir+'naco2gsheets.cfg')
+
+file_location = config.get('env','file_location') # with txt files output by macros
+temp_nafprod_file = config.get('env','temp_nafprod_file') # a hack to check for recs that have been produced
+log = config.get('env', 'log')
+conf_dir = config.get('env', 'conf_dir')
 online_save_id = config.get('sheets', 'onlinesave')
 naf_prod_id = config.get('sheets', 'nafprod')
 
