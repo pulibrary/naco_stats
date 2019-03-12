@@ -114,14 +114,14 @@ def get_text(sheet_name):
 							f1xx = row[4]
 						except:
 							f1xx = 'NULL'  # <= this would indicate a macro error
-						values_to_test = [user,rtype,f1xx] # see if these values can be marked DONE
-						if values_to_test in naf_prod:
-							row.append('ROBOT')
-							row.append('DONE')
-							cols = 'G1' # expand the column range to add the above values
-						post_naco(sheet_name,this_month,row,cols)
-						post_naco_count += 1
-							
+						if user not in ['kc','ay','jyn','rs','pt8_17','mis','se','ded']:
+							values_to_test = [user,rtype,f1xx] # see if these values can be marked DONE
+							if values_to_test in naf_prod:
+								row.append('ROBOT')
+								row.append('DONE')
+								cols = 'G1' # expand the column range to add the above values
+							post_naco(sheet_name,this_month,row,cols)
+							post_naco_count += 1
 	logging.info('%s dupes found in %s' % (dupe_count,sheet_name))
 	logging.info('%s new rows added to %s' % (post_naco_count,sheet_name))
 	logging.info('=' * 25)
