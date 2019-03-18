@@ -3,6 +3,9 @@
 """
 Push locally collated NACO statistics to Google Drive.
 If running manually just `python naco2gsheets.py`
+
+lw: OnlineSave COLORS: gray = done; yellow = duplicate; blue text = record to review as a group; orange = yang; green = lu; red = jennifer; purple = lidia; blue = regine
+
 from 20181213
 pmg
 """
@@ -52,7 +55,7 @@ def get_text(sheet_name):
 	# read the Google Sheets. There are two: OnlineSave and NAFProduction
 	for line in read_gsheet(sheet_name):
 		if sheet_name == 'OnlineSave':
-			line = [l.encode('utf8') for l in line][:-2] # encode as utf8 for comparison below + remove last two columns
+			line = [l.encode('utf8') for l in line][:-3] # encode as utf8 for comparison below + remove last two columns
 		elif sheet_name == 'NAFProduction':
 			line = [l.encode('utf8') for l in line]
 		existing_lines.append(line) # add to list for dupe detection
@@ -84,7 +87,7 @@ def get_text(sheet_name):
 						post_naco_count += 1
 
 	elif sheet_name == 'OnlineSave':
-		naf_prod = [] # 
+		naf_prod = [] 
 		with open(temp_nafprod_file,'rb') as temp:
 			temp_reader = csv.reader(temp,delimiter=',', quotechar='"')
 			for v in temp_reader:
@@ -120,6 +123,7 @@ def get_text(sheet_name):
 								row.append('ROBOT')
 								row.append('DONE')
 								cols = 'G1' # expand the column range to add the above values
+							print('ROROT % ' % row)
 							post_naco(sheet_name,this_month,row,cols)
 							post_naco_count += 1
 	logging.info('%s dupes found in %s' % (dupe_count,sheet_name))
