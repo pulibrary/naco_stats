@@ -7,12 +7,12 @@ A script to push locally collated NACO statistics to Google Drive for the PUL NA
 The results are available to the NACO committee via Tableau dashboard. As of early 2019, Tableau can't read from Team Drives. A workaround is to create sheets in a personal Google account, use `=IMPORTRANGE()` to copy data from the sheets in the Team Drive, and then point Tableau to the personal sheets.  
 
 Basic workflow ...
-`oclc connexion > oml macros > txt files > network share > py script <=> Google Drive <- Tableau :)`
+`oclc connexion > oml macros > txt files > network share > py script <=> Google Drive
 
 
 ## Required
-gspread `pip install gspread`
-Google API client library `pip install --upgrade google-api-python-client`
-oauth2client `pip install oauth2client`
+* gspread `pip install gspread`
+* Google API client library `pip install --upgrade google-api-python-client`
+* oauth2client `pip install oauth2client`
 
 [helpful Google API hints](https://www.twilio.com/blog/2017/02/an-easy-way-to-read-and-write-to-a-google-spreadsheet-in-python.html)
