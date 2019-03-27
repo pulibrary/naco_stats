@@ -45,14 +45,14 @@ log_filename = today+'.log' # <= write out values from all naf prod files tempor
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',filename=log+log_filename,level=logging.INFO)
 
 def main():
-	logging.info('=' * 25)
+	logging.info('=' * 50)
 	logging.info('main()')
 	setup()
 	stats = ['NAFProduction','OnlineSave']
 	for s in stats:
 		get_text(s,scopes,creds)
 	cleanup()
-	logging.info('=' * 25)
+	logging.info('=' * 50)
 
 def get_text(sheet_name,scopes,creds):
 	'''
@@ -62,8 +62,9 @@ def get_text(sheet_name,scopes,creds):
 	next_row = 0
 	existing_lines = [] # for dupe detection
 	online_save = []
-	
-	logging.info('getting data from % files' % sheet_name)
+
+	logging.info('=' * 25)
+	logging.info('getting data from %s files' % sheet_name)
 
 	# read the Google Sheets. There are two: OnlineSave and NAFProduction
 	for line in read_gsheet(sheet_name,scopes,creds):
