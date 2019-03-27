@@ -28,7 +28,7 @@ this_year = time.strftime('%Y')
 this_month = time.strftime('%Y%m') 
 
 config = ConfigParser.RawConfigParser()
-conf_dir = '/home/local/PRINCETON/pmgreen/naco/conf/' # NOTE: this has to be absolute path for cron
+conf_dir = './conf/' # NOTE: this has to be absolute path for cron
 config.read(conf_dir+'naco2gsheets.cfg')
 temp_nafprod_file = config.get('env', 'temp_nafprof_file') # to check all that have been produced
 text_file_location = config.get('env', 'text_files') # with txt files output by macros
