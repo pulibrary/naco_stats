@@ -4,7 +4,6 @@
 Push locally collated NACO statistics to Google Drive.
 If running manually, adjust the cfg file and run `python naco2gsheets.py`
 Requires credentials: https://console.developers.google.com/apis
-A helpful how-to: https://www.twilio.com/blog/2017/02/an-easy-way-to-read-and-write-to-a-google-spreadsheet-in-python.html
 from 20181213
 pmg
 """
@@ -29,7 +28,7 @@ this_year = time.strftime('%Y')
 this_month = time.strftime('%Y%m') 
 
 config = ConfigParser.RawConfigParser()
-conf_dir = './conf/' # NOTE: this has to be absolute path for cron
+conf_dir = '/home/local/PRINCETON/pmgreen/naco/conf/' # NOTE: this has to be absolute path for cron
 config.read(conf_dir+'naco2gsheets.cfg')
 temp_nafprod_file = config.get('env', 'temp_nafprof_file') # to check all that have been produced
 text_file_location = config.get('env', 'text_files') # with txt files output by macros
@@ -45,12 +44,14 @@ log_filename = today+'.log' # <= write out values from all naf prod files tempor
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',filename=log+log_filename,level=logging.INFO)
 
 def main():
-	logging.info('main')
+	logging.info('=' * 25)
+	logging.info('main()')
 	setup()
 	stats = ['NAFProduction','OnlineSave']
 	for s in stats:
 		get_text(s,scopes,creds)
 	cleanup()
+	logging.info('=' * 25)
 
 def get_text(sheet_name,scopes,creds):
 	'''
@@ -61,7 +62,7 @@ def get_text(sheet_name,scopes,creds):
 	existing_lines = [] # for dupe detection
 	online_save = []
 	
-	logging.info('get_text')
+	logging.info('getting data from % files' % sheet_name)
 
 	# read the Google Sheets. There are two: OnlineSave and NAFProduction
 	for line in read_gsheet(sheet_name,scopes,creds):
@@ -146,9 +147,8 @@ def get_text(sheet_name,scopes,creds):
 
 	logging.info('%s dupes found in %s' % (dupe_count,sheet_name))
 	logging.info('%s new rows added to %s' % (post_naco_count,sheet_name))
-	logging.info('=' * 25)
 	copyfile(log+log_filename,text_file_location+'logs/'+log_filename)
-	logging.info('log file copied to lib-tsserver')
+	logging.info('%s copied to lib-tsserver' % log_filename)
 
 
 def update_onlinesave(scopes, creds, client, sheet, naf_prod):
@@ -176,7 +176,6 @@ def update_onlinesave(scopes, creds, client, sheet, naf_prod):
 						updated += 1
 			n += 1
 	logging.info('%s headings marked as DONE' % updated)
-	logging.info('=' * 25)
 
 
 def post_naco(spreadsheet,month_tab,row,cols):
