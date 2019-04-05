@@ -81,7 +81,7 @@ def get_text(sheet_name,scopes,creds):
 		# loop through all the NAFProduction files on the network share
 		for n in glob.glob(text_file_location+'NAFProduction_*.txt'):
 			with open(n,'r') as statsin:
-				statsin = csv.reader(statsin, delimiter='\t',quotechar='"', quoting=csv.QUOTE_NONE)
+				statsin = csv.reader(statsin, delimiter='\t',quotechar='', quoting=csv.QUOTE_NONE)
 				for row in statsin:
 					month_tab = row[1][:-2]
 					row = [s.decode('latin1').encode('utf8').strip('"').replace('ß','ǂ') for s in row] # remove quotes
@@ -123,18 +123,19 @@ def get_text(sheet_name,scopes,creds):
 
 		# loop through the OnlineSave files in the shared directory
 		for onlinesave in glob.glob(text_file_location+'OnlineSave_*.txt'):
-			with open(onlinesave,'r') as osave:
-				osave = csv.reader(osave, delimiter='\t',quotechar='"', quoting=csv.QUOTE_NONE)
-				for row in osave:
-					cols = 'E1'
-					row = [s.decode('latin1').encode('utf8').strip('"').replace('ß','ǂ') for s in row] # remove quotes (from macro)
-					user = row[1]
-					rtype = row[2]
-					try:
-						f1xx = row[4]
-					except:
-						f1xx = 'NULL'  # <= macro error
-					if user not in ['kc','ay','jyn','rs','pt8_17','mis','se','ded']: # skip melt team
+			if os.stat(onlinesave).st_size > 0:
+				with open(onlinesave,'r') as osave:
+					osave = csv.reader(osave, delimiter='\t',quotechar='"', quoting=csv.QUOTE_NONE)
+					for row in osave:
+						cols = 'E1'
+						row = [s.decode('latin1').encode('utf8').strip('"').replace('ß','ǂ') for s in row] # remove quotes (from macro)
+						user = row[1]
+						rtype = row[2]
+						try:
+							f1xx = row[4]
+						except:
+							f1xx = 'NULL'  # <= macro error
+						#if user not in ['kc','ay','jyn','rs','pt8_17','mis','se','ded']: # skip melt team
 						values_to_test = [user,rtype,f1xx] # see if these values can be marked DONE
 						online_save.append(values_to_test) # add them to a list
 						if (next_row == 2) or (row not in existing_lines): # if the sheet is blank, or if the heading is new, just append
@@ -144,11 +145,11 @@ def get_text(sheet_name,scopes,creds):
 								cols = 'G1' # expand the column range to add the above values
 							post_naco(sheet_name,this_month,row,cols)
 							post_naco_count += 1
-						else:
-							pass
+							#else:
+							#	pass
 
 	logging.info('%s dupes found in %s' % (dupe_count,sheet_name))
-	logging.info('%s new rows added to %s' % (post_naco_count,sheet_name))
+	logging.info('===> %s new rows added to %s' % (post_naco_count,sheet_name))
 	copyfile(log+log_filename,text_file_location+'logs/'+log_filename)
 	logging.info('%s copied to lib-tsserver' % log_filename)
 
@@ -262,6 +263,7 @@ def get_sheet_values(sheet):
 	if next_row > 2:
 		while n <= next_row:
 			row_values = sheet.row_values(n)
+			print(row_values)
 			if sheet.title == this_year: # OnlineSave sheet will have the name of the current year
 				sheet_values.append(row_values[:5])
 			else:
