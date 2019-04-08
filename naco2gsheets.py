@@ -64,7 +64,7 @@ def get_text(sheet_name,scopes,creds):
 	online_save = []
 
 	logging.info('=' * 25)
-	logging.info('getting data from %s files' % sheet_name)
+	logging.info('= getting data from %s files' % sheet_name)
 
 	# read the Google Sheets. There are two: OnlineSave and NAFProduction
 	for line in read_gsheet(sheet_name,scopes,creds):
@@ -72,7 +72,7 @@ def get_text(sheet_name,scopes,creds):
 		existing_lines.append(line) # add to list for dupe detection
 
 	# check for dupes
-	logging.info('checking for dupes')
+	logging.info('= checking for dupes')
 	dupe_count = 0
 	post_naco_count = 0
 	cols = 'D1' # D is the default range in NAFProduction Google Sheet
@@ -148,10 +148,10 @@ def get_text(sheet_name,scopes,creds):
 							#else:
 							#	pass
 
-	logging.info('%s dupes found in %s' % (dupe_count,sheet_name))
-	logging.info('===> %s new rows added to %s' % (post_naco_count,sheet_name))
+	logging.info('= %s dupes found in %s' % (dupe_count,sheet_name))
+	logging.info('= %s new rows added to %s' % (post_naco_count,sheet_name))
 	copyfile(log+log_filename,text_file_location+'logs/'+log_filename)
-	logging.info('%s copied to lib-tsserver' % log_filename)
+	logging.info('= %s copied to lib-tsserver' % log_filename)
 
 
 def update_onlinesave(scopes, creds, client, sheet, naf_prod):
@@ -178,7 +178,7 @@ def update_onlinesave(scopes, creds, client, sheet, naf_prod):
 						sheet.update_acell(cell2update,'DONE')
 						updated += 1
 			n += 1
-	logging.info('%s headings marked as DONE' % updated)
+	logging.info('= %s headings marked as DONE' % updated)
 
 
 def post_naco(spreadsheet,month_tab,row,cols):
@@ -247,7 +247,7 @@ def read_gsheet(sheet_name,scopes,creds):
 	#	sheet_values = sheet.get_all_values() # there's a max of 162 rows for this function!
 		sheet_values = get_sheet_values(sheet)
 
-	logging.info('reading Google Sheet %s' % sheet_name)
+	logging.info('= reading Google Sheet %s' % sheet_name)
 	return sheet_values
 
 
@@ -255,10 +255,10 @@ def get_sheet_values(sheet):
 	'''
 	attempting to work around limits of get_all_values
 	'''
-	logging.info('getting values of %s' % sheet.title)
+	logging.info('= getting values of %s' % sheet.title)
 	sheet_values = []
 	next_row = next_available_row(sheet) # next available (blank) row
-	logging.info('Google Sheet %s has %d rows' % (sheet.title,next_row-1))
+	logging.info('= Google Sheet %s has %d rows' % (sheet.title,next_row-1))
 	n = 2 # initial count (skipping the header row)
 	if next_row > 2:
 		while n <= next_row:
@@ -290,7 +290,7 @@ def setup():
 		cleanup() # remove existing file
 	else:
 		os.mknod(temp_nafprod_file)
-	logging.info('created %s' % temp_nafprod_file)
+	logging.info('= created %s' % temp_nafprod_file)
 
 
 def cleanup():
@@ -298,7 +298,7 @@ def cleanup():
 	Remove temp nafproduction file
 	'''
 	os.remove(temp_nafprod_file)
-	logging.info('%s removed' % temp_nafprod_file)
+	logging.info('= %s removed' % temp_nafprod_file)
 
 
 if __name__ == "__main__":
