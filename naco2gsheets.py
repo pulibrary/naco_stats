@@ -185,8 +185,6 @@ def post_naco(spreadsheet,month_tab,row,cols):
 	Shows basic usage of the Sheets API.
 	Prints values from a sample spreadsheet.
 	'''
-	# The file token.json stores the user's access and refresh tokens, and is
-	# created automatically when the authorization flow completes for the first time.
 	range_ = ''
 	ws = ''
 	insert_data_option = 'OVERWRITE' #'INSERT_ROWS' # append if not already in the sheet (default)
