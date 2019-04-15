@@ -37,7 +37,6 @@ log = config.get('env', 'logs')
 online_save_id = config.get('sheets', 'onlinesave')
 naf_prod_id = config.get('sheets', 'nafprod')
 
-scope = 'https://www.googleapis.com/auth/drive.metadata.readonly'
 scopes = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
 creds = ServiceAccountCredentials.from_json_keyfile_name(conf_dir+'client_secret.json', scopes)
 
@@ -119,7 +118,7 @@ def get_text(sheet_name,scopes,creds):
 
 		client = gspread.authorize(creds)
 		sheet = client.open("OnlineSave").worksheet(this_year)
-		update_onlinesave(scopes, creds, client, sheet, naf_prod) # mark any existing rows as DONE
+		update_onlinesave(sheet, naf_prod) # mark any existing rows as DONE
 
 		# loop through the OnlineSave files in the shared directory
 		for onlinesave in glob.glob(text_file_location+'OnlineSave_*.txt'):
@@ -154,7 +153,7 @@ def get_text(sheet_name,scopes,creds):
 	logging.info('= %s copied to lib-tsserver' % log_filename)
 
 
-def update_onlinesave(scopes, creds, client, sheet, naf_prod):
+def update_onlinesave(sheet, naf_prod):
 	'''
 	Check the OnlineSave Google Sheet against NAFProduction values and flag those that are done
 	'''
@@ -188,17 +187,15 @@ def post_naco(spreadsheet,month_tab,row,cols):
 	'''
 	# The file token.json stores the user's access and refresh tokens, and is
 	# created automatically when the authorization flow completes for the first time.
-	spreadsheet_id = ''
 	range_ = ''
-	store = file.Storage(conf_dir+'token.json')
-	creds = store.get()
+	ws = ''
 	insert_data_option = 'OVERWRITE' #'INSERT_ROWS' # append if not already in the sheet (default)
 	if spreadsheet == 'OnlineSave':
-		spreadsheet_id = online_save_id
-		range_ = '%s!A1:%s' % (this_year,cols)
+		ws = this_year
+		range_ = 'A1:%s' % cols
 	elif spreadsheet == 'NAFProduction': 
-		spreadsheet_id = naf_prod_id # this in Team Drive; Tableau refers to a copy by using IMPORTRANGE() within a workbook in 'regular' Drive  
-		range_ = month_tab+'!A1:%s' % cols # <= monthly tabs
+		ws = month_tab # <= monthly tabs
+		range_ = 'A1:%s' % cols
 
 	value_input_option = 'RAW'
 
@@ -207,15 +204,12 @@ def post_naco(spreadsheet,month_tab,row,cols):
 					row
 				]
 			}
-	if not creds or creds.invalid:
-		flow = client.flow_from_clientsecrets(conf_dir+'client_secret.json', scope) # or credentials.json?
-		creds = tools.run_flow(flow, store)
-	service = build('sheets', 'v4', http=creds.authorize(http),cache_discovery=False)
 
 	# Call the Sheets API
-	sheet = service.spreadsheets()
-	request = service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range=range_, valueInputOption=value_input_option, insertDataOption=insert_data_option, body=value_range_body)
-	response = request.execute()
+	client = gspread.authorize(creds)
+	sheet = client.open(spreadsheet).worksheet(ws)
+	cell_list = sheet.range(range_)
+	sheet.update_cells(cell_list)
 
 	msg = 'posting to %s : %s,%s,%s,%s,%s' % (spreadsheet,row[0],row[1],row[2],row[3],row[4]) # just for feedback
 	#print(msg)
@@ -244,7 +238,6 @@ def read_gsheet(sheet_name,scopes,creds):
 					sheet_values.append(val)
 	elif sheet_name == 'OnlineSave': 
 		sheet = client.open("OnlineSave").sheet1
-	#	sheet_values = sheet.get_all_values() # there's a max of 162 rows for this function!
 		sheet_values = get_sheet_values(sheet)
 
 	logging.info('= reading Google Sheet %s' % sheet_name)
@@ -278,7 +271,7 @@ def next_available_row(sheet):
 	'''
 	Stolen from stackoverflow, to find next blank row
 	'''
-	str_list = filter(None, sheet.col_values(1))  # fastest
+	str_list = filter(None, sheet.col_values(1))
 	return len(str_list)+1
 
 
