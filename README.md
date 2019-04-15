@@ -11,8 +11,9 @@ Basic workflow ...
 
 
 ## Required
-* gspread `pip install gspread`
+* [gspread](https://github.com/burnash/gspread) `pip install gspread` 
 * Google API client library `pip install --upgrade google-api-python-client`
 * oauth2client `pip install oauth2client`
 
 [helpful Google API hints](https://www.twilio.com/blog/2017/02/an-easy-way-to-read-and-write-to-a-google-spreadsheet-in-python.html)
+[oauth2](https://gspread.readthedocs.io/en/latest/oauth2.html)
