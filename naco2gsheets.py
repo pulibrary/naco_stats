@@ -4,6 +4,7 @@
 Push locally collated NACO statistics to Google Drive.
 If running manually, adjust the cfg file and run `python naco2gsheets.py`
 Requires credentials: https://console.developers.google.com/apis
+To see quotos see https://console.developers.google.com/apis
 from 20181213
 pmg
 """
@@ -43,6 +44,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_name(conf_dir+'client_secret
 log_filename = today+'.log' # <= write out values from all naf prod files temporarily
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',filename=log+log_filename,level=logging.INFO)
 
+
 def main():
 	logging.info('=' * 50)
 	logging.info('main()')
@@ -68,7 +70,7 @@ def get_text(sheet_name,scopes,creds):
 	# read the Google Sheets. There are two: OnlineSave and NAFProduction
 	for line in read_gsheet(sheet_name,scopes,creds):
 		line = [l.encode('utf8') for l in line]
-		existing_lines.append(line) # add to list for dupe detection
+		existing_lines.append(line) # add to list of existing_lines for dupe detection (values may change unpredictably)
 
 	# check for dupes
 	logging.info('= checking for dupes')
@@ -94,12 +96,11 @@ def get_text(sheet_name,scopes,creds):
 						dupe_count += 1
 						pass # because it's already in the google sheet
 					else:
-						post_naco(sheet_name,month_tab,row,cols)
+						append_data(sheet_name,month_tab,row,cols)
 						post_naco_count += 1
 
 	elif sheet_name == 'OnlineSave':
 		# loop through all OnlineSave files on network share
-
 		# read in values from the temporary nafprod file
 		# TODO? sqlite db instead?
 		naf_prod = []
@@ -142,16 +143,14 @@ def get_text(sheet_name,scopes,creds):
 								row.append('ROBOT')
 								row.append('DONE')
 								cols = 'G1' # expand the column range to add the above values
-							post_naco(sheet_name,this_month,row,cols)
+							append_data(sheet_name,this_month,row,cols)
 							post_naco_count += 1
 							#else:
 							#	pass
 
 	logging.info('= %s dupes found in %s' % (dupe_count,sheet_name))
 	logging.info('= %s new rows added to %s' % (post_naco_count,sheet_name))
-	copyfile(log+log_filename,text_file_location+'logs/'+log_filename)
-	logging.info('= %s copied to lib-tsserver' % log_filename)
-
+	
 
 def update_onlinesave(sheet, naf_prod):
 	'''
@@ -167,7 +166,6 @@ def update_onlinesave(sheet, naf_prod):
 			row_values = sheet.row_values(n)
 			time.sleep(1) # seems necessary to avoid api limits
 			if row_values:
-				#print('checking %s' % row_values)
 				if row_values:
 					to_test = [row_values[1],row_values[2],row_values[4]]
 					to_test = [l.encode('utf8') for l in to_test]
@@ -180,10 +178,9 @@ def update_onlinesave(sheet, naf_prod):
 	logging.info('= %s headings marked as DONE' % updated)
 
 
-def post_naco(spreadsheet,month_tab,row,cols):
+def append_data(spreadsheet,month_tab,row,cols):
 	'''
-	Shows basic usage of the Sheets API.
-	Prints values from a sample spreadsheet.
+	Append values
 	'''
 	range_ = ''
 	ws = ''
@@ -195,19 +192,20 @@ def post_naco(spreadsheet,month_tab,row,cols):
 		ws = month_tab # <= monthly tabs
 		range_ = 'A1:%s' % cols
 
-	value_input_option = 'RAW'
+	#value_input_option = 'RAW'
 
-	value_range_body = {
-		"values": [
-					row
-				]
-			}
+	#value_range_body = {
+	#	"values": [
+	#				row
+	#			]
+	#		}
 
 	# Call the Sheets API
 	client = gspread.authorize(creds)
 	sheet = client.open(spreadsheet).worksheet(ws)
 	cell_list = sheet.range(range_)
-	sheet.update_cells(cell_list)
+	sheet.append_row(row) # value input option is RAW by default
+	time.sleep(1) # to avoid quota for free account 
 
 	msg = 'posting to %s : %s,%s,%s,%s,%s' % (spreadsheet,row[0],row[1],row[2],row[3],row[4]) # just for feedback
 	#print(msg)
@@ -254,13 +252,15 @@ def get_sheet_values(sheet):
 	if next_row > 2:
 		while n <= next_row:
 			row_values = sheet.row_values(n)
-			print(row_values)
+			# print(row_values)
 			if sheet.title == this_year: # OnlineSave sheet will have the name of the current year
 				sheet_values.append(row_values[:5])
 			else:
 				sheet_values.append(row_values)
 			time.sleep(1) # painfully slow but otherwise api limit is hit
 			n += 1
+		#sheet.get_all_records()
+	# TODO? try sheet.get_all_records() but pass sheet with single quotes https://github.com/burnash/gspread/issues/554
 	# return a list of lists
 	return sheet_values
 
@@ -288,6 +288,9 @@ def cleanup():
 	'''
 	Remove temp nafproduction file
 	'''
+	copyfile(log+log_filename,text_file_location+'logs/'+log_filename)
+	logging.info('= %s copied to lib-tsserver' % log_filename)
+	
 	os.remove(temp_nafprod_file)
 	logging.info('= %s removed' % temp_nafprod_file)
 
