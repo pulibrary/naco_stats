@@ -4,7 +4,7 @@
 Push locally collated NACO statistics to Google Drive.
 If running manually, adjust the cfg file and run `python naco2gsheets.py`
 Requires credentials: https://console.developers.google.com/apis
-To see quotos see https://console.developers.google.com/apis
+To see quotas see https://console.developers.google.com/apis
 from 20181213
 pmg
 """
@@ -54,6 +54,7 @@ def main():
 		get_text(s,scopes,creds)
 	cleanup()
 	logging.info('=' * 50)
+
 
 def get_text(sheet_name,scopes,creds):
 	'''
@@ -164,16 +165,15 @@ def update_onlinesave(sheet, naf_prod):
 	if next_row > 2:
 		while n <= next_row:
 			row_values = sheet.row_values(n)
-			time.sleep(1) # seems necessary to avoid api limits
 			if row_values:
-				if row_values:
-					to_test = [row_values[1],row_values[2],row_values[4]]
-					to_test = [l.encode('utf8') for l in to_test]
-					rowlen = len(row_values) # if there's a note, the row length will be 7 (i.e. skip the ones already marked DONE or ok)
-					if to_test in naf_prod and rowlen <= 6:
-						cell2update = 'G%s'%n
-						sheet.update_acell(cell2update,'DONE')
-						updated += 1
+				to_test = [row_values[1],row_values[2],row_values[4]]
+				to_test = [l.encode('utf8') for l in to_test]
+				rowlen = len(row_values) # if there's a note, the row length will be 7 (i.e. skip the ones already marked DONE or ok)
+				if to_test in naf_prod and rowlen <= 6:
+					cell2update = 'G%s'%n
+					sheet.update_acell(cell2update,'DONE')
+					updated += 1
+			time.sleep(1.01) # seems necessary to avoid api limits
 			n += 1
 	logging.info('= %s headings marked as DONE' % updated)
 
@@ -202,10 +202,10 @@ def append_data(spreadsheet,month_tab,row,cols):
 
 	# Call the Sheets API
 	client = gspread.authorize(creds)
+	time.sleep(1.01) # to avoid quota for free account 
 	sheet = client.open(spreadsheet).worksheet(ws)
 	cell_list = sheet.range(range_)
 	sheet.append_row(row) # value input option is RAW by default
-	time.sleep(1) # to avoid quota for free account 
 
 	msg = 'posting to %s : %s,%s,%s,%s,%s' % (spreadsheet,row[0],row[1],row[2],row[3],row[4]) # just for feedback
 	#print(msg)
@@ -252,12 +252,12 @@ def get_sheet_values(sheet):
 	if next_row > 2:
 		while n <= next_row:
 			row_values = sheet.row_values(n)
-			# print(row_values)
+			print('%s %s ' % (sheet,row_values))
 			if sheet.title == this_year: # OnlineSave sheet will have the name of the current year
 				sheet_values.append(row_values[:5])
 			else:
 				sheet_values.append(row_values)
-			time.sleep(1) # painfully slow but otherwise api limit is hit
+			time.sleep(1.01) # painfully slow but otherwise api limit is hit
 			n += 1
 		#sheet.get_all_records()
 	# TODO? try sheet.get_all_records() but pass sheet with single quotes https://github.com/burnash/gspread/issues/554
