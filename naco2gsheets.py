@@ -8,18 +8,25 @@ To see quotas see https://console.developers.google.com/apis
 from 20181213
 pmg
 """
+import argparse
 import ConfigParser
 import csv
 import glob
 import gspread
 import httplib2
+import json
 import os
+import pandas as pd
 import logging
+import requests
 import sqlite3 as lite
 import time
+from df2gspread import df2gspread as d2g
 from googleapiclient.discovery import build
+from gsheets import Sheets
 from oauth2client import file, client, tools
 from oauth2client.service_account import ServiceAccountCredentials
+from operator import itemgetter
 from shutil import copyfile
 
 http = httplib2.Http()
@@ -31,15 +38,21 @@ this_month = time.strftime('%Y%m')
 config = ConfigParser.RawConfigParser()
 cwd = os.getcwd()
 conf_dir = cwd+'/conf/' # NOTE: this has to be absolute path for cron
-config.read(conf_dir+'naco2gsheets.cfg')
+config.read(conf_dir+'naco2gsheets_local.cfg')
 temp_nafprod_file = config.get('env', 'temp_nafprof_file') # to check all that have been produced
 text_file_location = config.get('env', 'text_files') # with txt files output by macros
 log = config.get('env', 'logs') 
 online_save_id = config.get('sheets', 'onlinesave')
 naf_prod_id = config.get('sheets', 'nafprod')
 
-scopes = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
+downloaded_os = "OnlineSave%s" % this_year # downloaded Google sheet with latest annotations
+nafcsv = 'nafprod_%s.csv' % this_month
+os_to_upload = downloaded_os+'_to_upload.csv'
+os_emergency_backup = '/onlinesave_backup/OnlineSave_emergency_backup.csv'
+
+scopes = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 creds = ServiceAccountCredentials.from_json_keyfile_name(conf_dir+'client_secret.json', scopes)
+client = gspread.authorize(creds)
 
 log_filename = today+'.log' # <= write out values from all naf prod files temporarily
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',filename=log+log_filename,level=logging.INFO)
@@ -48,229 +61,233 @@ logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S
 def main():
 	logging.info('=' * 50)
 	logging.info('main()')
-	setup()
-	stats = ['NAFProduction','OnlineSave']
-	for s in stats:
-		get_text(s,scopes,creds)
+	make_temp_nafprod_file() 
+	make_temp_onlinesave() # just as a backup on network share
+	download_onlinesave()
+	gsheets = ['NAFProduction','OnlineSave'] # names of the Google Sheets
+	for wb in gsheets:
+		make_files_to_upload(wb)
 	cleanup()
 	logging.info('=' * 50)
 
 
-def get_text(sheet_name,scopes,creds):
+def download_onlinesave():
+	'''
+	Download onlinesave for local parsing.
+	'''
+	sheets = Sheets.from_files(conf_dir+'/client_secret.json',conf_dir+'./storage.json')
+	fileId = online_save_id
+	url = 'https://docs.google.com/spreadsheets/d/' + fileId
+	s = sheets.get(url)
+	sheet_index = 0
+	oscsv = 'OnlineSave%s.csv' % this_year
+
+	s.sheets[sheet_index].to_csv(oscsv,encoding='utf-8',dialect='excel')
+
+	msg = 'OnlineSave Google Sheet saved to csv'
+	if verbose:
+		print(msg)
+	logging.info(msg)
+
+
+def make_temp_nafprod_file():
+	'''
+	Combine all NAFProduction_*.txt files locally -- these are the most up to date values
+	'''
+	setup()
+	for n in glob.glob(text_file_location+'NAFProduction_*.txt'):
+		with open(n,'r') as statsin:
+			statsin = csv.reader(statsin, delimiter='\t',quotechar='', quoting=csv.QUOTE_NONE)
+			for row in statsin:
+				month_tab = row[1][:-2]
+				row = [s.decode('latin1').encode('utf8').strip('"').replace('ß','ǂ') for s in row] # remove quotes
+
+				# write all values to a temp file to check for those that are done within the OnlineSave file
+				with open(temp_nafprod_file,'ab') as tempfile:
+					writer = csv.writer(tempfile)
+					writer.writerow(row)
+	
+	msg = '= made %s' % temp_nafprod_file
+	if verbose:
+		print(msg)
+	logging.info(msg)
+
+
+def make_temp_onlinesave():
+	'''
+	Combine all OnlineSave_*.txt files as a backup on the network share
+	'''
+	bakfile = text_file_location+os_emergency_backup
+	if os.path.isfile(bakfile):
+		os.remove(bakfile)
+		logging.info('= %s removed' % bakfile)
+
+	for onlinesave in glob.glob(text_file_location+'OnlineSave_*.txt'):
+		if os.stat(onlinesave).st_size > 0:
+			with open(onlinesave,'r') as osave, open(bakfile, "ab") as outfile:
+				osave = csv.reader(osave, delimiter='\t',quotechar='"', quoting=csv.QUOTE_NONE)
+				osbak = csv.writer(outfile)
+				for row in osave:
+					row = [s.decode('latin1').encode('utf8').strip('"').replace('ß','ǂ') for s in row] # remove quotes
+					osbak.writerow(row)
+
+	msg = '= made OnlineSave_emergency_backup.csv on networkshare'
+	if verbose:
+		print(msg)
+	logging.info(msg)
+
+
+def make_files_to_upload(sheet_name):
 	'''
 	Get values from txt files and put them into lists
 	'''
 	f1xx = ''
 	next_row = 0
-	existing_lines = [] # for dupe detection
+	existing_lines = []
+	existing_lines_all = []
+	new_lines = []
 	online_save = []
 
 	logging.info('=' * 25)
 	logging.info('= getting data from %s files' % sheet_name)
 
-	# read the Google Sheets. There are two: OnlineSave and NAFProduction
-	for line in read_gsheet(sheet_name,scopes,creds):
-		line = [l.encode('utf8') for l in line]
-		existing_lines.append(line) # add to list of existing_lines for dupe detection (values may change unpredictably)
-
-	# check for dupes
-	logging.info('= checking for dupes')
-	dupe_count = 0
 	post_naco_count = 0
-	cols = 'D1' # D is the default range in NAFProduction Google Sheet
 
 	if sheet_name == 'NAFProduction':
-		# loop through all the NAFProduction files on the network share
-		for n in glob.glob(text_file_location+'NAFProduction_*.txt'):
-			with open(n,'r') as statsin:
-				statsin = csv.reader(statsin, delimiter='\t',quotechar='', quoting=csv.QUOTE_NONE)
-				for row in statsin:
-					month_tab = row[1][:-2]
-					row = [s.decode('latin1').encode('utf8').strip('"').replace('ß','ǂ') for s in row] # remove quotes
+		# loop over the temp NAFProduction file (which combines all the txt files on network share)
+		with open(temp_nafprod_file,'rb') as temp, open(nafcsv,'wb+') as nafup:
+			temp_reader = csv.reader(temp, delimiter=',', quotechar='"')
+			nafup_writer = csv.writer(nafup, delimiter=',', quotechar='"')
+			
+			for row in temp_reader:
+				month_tab = row[1][:-2]
+				record_date = row[1][:-2]
+				if record_date == this_month:
+					nafup_writer.writerow(row)
+					post_naco_count += 1
 
-					# write all values to a temp file to check for those that are done within the OnlineSave file
-					with open(temp_nafprod_file,'ab') as tempfile:
-						writer = csv.writer(tempfile)
-						writer.writerow(row)
-						
-					if row in existing_lines:
-						dupe_count += 1
-						pass # because it's already in the google sheet
-					else:
-						append_data(sheet_name,month_tab,row,cols)
-						post_naco_count += 1
+		upload_to_gsheets(nafcsv,sheet_name,this_month) # TODO fill in wb and sheet names
 
 	elif sheet_name == 'OnlineSave':
-		# loop through all OnlineSave files on network share
-		# read in values from the temporary nafprod file
-		# TODO? sqlite db instead?
+		# TODO: refactor see update_onlinesave
 		naf_prod = []
 		with open(temp_nafprod_file,'rb') as temp:
 			temp_reader = csv.reader(temp, delimiter=',', quotechar='"')
-			for v in temp_reader:
-				vgerid = v[0]
-				rtype = v[2]
-				category = v[3]
+			for row in temp_reader:
+				vgerid = row[0]
+				rtype = row[2]
+				category = row[3]
 				try:
-					f1xx = v[4]
+					f1xx = row[4]
 				except:
 					f1xx = 'NULL' # <= this would indicate a macro error
 				relevant_values = [vgerid,category,f1xx]
 				naf_prod.append(relevant_values) # a list of everything in NAFProduction files to compare against OnlineSave files, to detect and automatically mark new ones
 
-		client = gspread.authorize(creds)
-		sheet = client.open("OnlineSave").worksheet(this_year)
-		update_onlinesave(sheet, naf_prod) # mark any existing rows as DONE
+		update_onlinesave() # this checks the downloaded OnlineSave Google Sheet and marks DONE, produces onlinesave{year}_out.csv
+		
+		with open(downloaded_os+'_out.csv','rb') as osout:
+			osout_reader = csv.reader(osout, delimiter=',', quotechar='"')
+			next(osout_reader,None)
+			for line in osout_reader:
+				existing_lines_all.append(line) # full line including annotations
+				if len(line) == 7:
+					line = line[:-2] # remove the last cell (DONE,ok)
+				elif len(line) == 6:
+					line = line[:-1] # remove last cell (assignment)
+				existing_lines.append(line) # no annotations
 
-		# loop through the OnlineSave files in the shared directory
+		# now loop through the OnlineSave files in the shared directory for the newer records ...
 		for onlinesave in glob.glob(text_file_location+'OnlineSave_*.txt'):
 			if os.stat(onlinesave).st_size > 0:
 				with open(onlinesave,'r') as osave:
 					osave = csv.reader(osave, delimiter='\t',quotechar='"', quoting=csv.QUOTE_NONE)
 					for row in osave:
-						cols = 'E1'
 						row = [s.decode('latin1').encode('utf8').strip('"').replace('ß','ǂ') for s in row] # remove quotes (from macro)
 						user = row[1]
 						rtype = row[2]
 						try:
 							f1xx = row[4]
 						except:
-							f1xx = 'NULL'  # <= macro error
+							f1xx = 'NULL'  # <= this would be a macro error
 						#if user not in ['kc','ay','jyn','rs','pt8_17','mis','se','ded']: # skip melt team
 						values_to_test = [user,rtype,f1xx] # see if these values can be marked DONE
 						online_save.append(values_to_test) # add them to a list
-						if (next_row == 2) or (row not in existing_lines): # if the sheet is blank, or if the heading is new, just append
+						if row not in existing_lines:
 							if values_to_test in naf_prod: # if it's already in one of the NAFProduction files, flag it ...
-								row.append('ROBOT')
+								row.append('ROBOTTTTTT')
 								row.append('DONE')
-								cols = 'G1' # expand the column range to add the above values
-							append_data(sheet_name,this_month,row,cols)
-							post_naco_count += 1
-							#else:
-							#	pass
+							new_lines.append(row)
+						post_naco_count += 1
+		with open(os_to_upload,'wb+') as osup:
+			osup_writer = csv.writer(osup)
+			header = ['fileid','vgerid','type','date','1xx','reviewer','is_done']
+			osup_writer.writerow(header)
+			allout = existing_lines_all + new_lines
+			allout = sorted(allout,key=itemgetter(3)) # sort by date
+			for new in allout:
+				osup_writer.writerow(new)
+		logging.info('= wrote to  %s' % os_to_upload)
 
-	logging.info('= %s dupes found in %s' % (dupe_count,sheet_name))
-	logging.info('= %s new rows added to %s' % (post_naco_count,sheet_name))
+		upload_to_gsheets(os_to_upload,sheet_name,this_year)
+
+	msg = '= %s rows uploaded to %s' % (post_naco_count,sheet_name)
+	if verbose:
+		print msg
+	logging.info(msg)
 	
 
-def update_onlinesave(sheet, naf_prod):
+def update_onlinesave():
 	'''
-	Check the OnlineSave Google Sheet against NAFProduction values and flag those that are done
+	Check the (downloaded) OnlineSave Google Sheet against NAFProduction text files and flag those that are already done
 	'''
-	next_row = next_available_row(sheet) # next available row
-	row_num = sheet.row_count # all the rows in the sheet (even if empty)
-	row_num = int(row_num)
+	naf_prod = []
+	to_test = []
+
+	with open('naf_prod_temp.csv','r') as naftemp:
+		naftempreader = csv.reader(naftemp)
+		for l in naftempreader:
+			l = [s.strip('"').replace('ß','ǂ') for s in l]
+			to_compare = l[0],l[3],l[4]
+			to_compare = list(to_compare)
+			naf_prod.append(to_compare)
+			
 	updated = 0
-	n = 2 # initial count (skipping the header row)
-	if next_row > 2:
-		while n <= next_row:
-			row_values = sheet.row_values(n)
-			if row_values:
-				to_test = [row_values[1],row_values[2],row_values[4]]
-				to_test = [l.encode('utf8') for l in to_test]
-				rowlen = len(row_values) # if there's a note, the row length will be 7 (i.e. skip the ones already marked DONE or ok)
+	with open(downloaded_os+'.csv','r') as os,open(downloaded_os+'_out.csv','w') as osout:
+		osreader = csv.reader(os, delimiter=',', quotechar='"')
+		oswriter = csv.writer(osout)
+		for row in osreader:
+			if row:
+				to_test = [row[1],row[2],row[4]] # vgerid, type, 1xx
+				rowlen = len(row) # if there's a note, the row length will be 7 (i.e. skip the ones already marked DONE or ok)
 				if to_test in naf_prod and rowlen <= 6:
-					cell2update = 'G%s'%n
-					sheet.update_acell(cell2update,'DONE')
+					row.append('ROBOT')
+					row.append('DONEEEEE') # TODO: change this :)
 					updated += 1
-			time.sleep(1.01) # seems necessary to avoid api limits
-			n += 1
-	logging.info('= %s headings marked as DONE' % updated)
+				oswriter.writerow(row)
 
-
-def append_data(spreadsheet,month_tab,row,cols):
-	'''
-	Append values
-	'''
-	range_ = ''
-	ws = ''
-	insert_data_option = 'OVERWRITE' #'INSERT_ROWS' # append if not already in the sheet (default)
-	if spreadsheet == 'OnlineSave':
-		ws = this_year
-		range_ = 'A1:%s' % cols
-	elif spreadsheet == 'NAFProduction': 
-		ws = month_tab # <= monthly tabs
-		range_ = 'A1:%s' % cols
-
-	#value_input_option = 'RAW'
-
-	#value_range_body = {
-	#	"values": [
-	#				row
-	#			]
-	#		}
-
-	# Call the Sheets API
-	client = gspread.authorize(creds)
-	time.sleep(1.01) # to avoid quota for free account 
-	sheet = client.open(spreadsheet).worksheet(ws)
-	cell_list = sheet.range(range_)
-	sheet.append_row(row) # value input option is RAW by default
-
-	msg = 'posting to %s : %s,%s,%s,%s,%s' % (spreadsheet,row[0],row[1],row[2],row[3],row[4]) # just for feedback
-	#print(msg)
+	msg = '= %s headings marked as DONE' % updated
+	if verbose:
+		print(msg)
 	logging.info(msg)
 
 
-def read_gsheet(sheet_name,scopes,creds):
+def upload_to_gsheets(file_to_upload,workbook,sheetname):
 	'''
-	Get all values from Google Sheets
+	Upload parsed csv files
 	'''
-	# use creds to create a client to interact with the Google Drive API
-	sheet = ''
-	sheet_values = []
-	client = gspread.authorize(creds)
+	# when token expires, try going to google api, oauth 2.0 OAuth client IDs and grab another or create another and download, save it as ``~/.gdrive_private`` (as a file)
 	
-	# Find a workbook by name and open the first sheet
-	# Make sure you use the right name here.
-	if sheet_name == 'NAFProduction':
-		wb = client.open("NAFProduction")
-		for tab in wb.worksheets():
-			sheet = client.open("NAFProduction").worksheet(tab.title)
-			#this_sheet_values = sheet.get_all_values() # watch api limits (500 requests per 100 seconds per project, and 100 requests per 100 seconds per user)
-			this_sheet_values = get_sheet_values(sheet) # get values from each sheet
-			if this_sheet_values:
-				for val in this_sheet_values:
-					sheet_values.append(val)
-	elif sheet_name == 'OnlineSave': 
-		sheet = client.open("OnlineSave").sheet1
-		sheet_values = get_sheet_values(sheet)
+	sheet = client.open(workbook).id
 
-	logging.info('= reading Google Sheet %s' % sheet_name)
-	return sheet_values
+	df = pd.read_csv(file_to_upload)
+	
+	d2g.upload(df,sheet,sheetname)
 
-
-def get_sheet_values(sheet):
-	'''
-	attempting to work around limits of get_all_values
-	'''
-	logging.info('= getting values of %s' % sheet.title)
-	sheet_values = []
-	next_row = next_available_row(sheet) # next available (blank) row
-	logging.info('= Google Sheet %s has %d rows' % (sheet.title,next_row-1))
-	n = 2 # initial count (skipping the header row)
-	if next_row > 2:
-		while n <= next_row:
-			row_values = sheet.row_values(n)
-			print('%s %s ' % (sheet,row_values))
-			if sheet.title == this_year: # OnlineSave sheet will have the name of the current year
-				sheet_values.append(row_values[:5])
-			else:
-				sheet_values.append(row_values)
-			time.sleep(1.01) # painfully slow but otherwise api limit is hit
-			n += 1
-		#sheet.get_all_records()
-	# TODO? try sheet.get_all_records() but pass sheet with single quotes https://github.com/burnash/gspread/issues/554
-	# return a list of lists
-	return sheet_values
-
-
-def next_available_row(sheet):
-	'''
-	Stolen from stackoverflow, to find next blank row
-	'''
-	str_list = filter(None, sheet.col_values(1))
-	return len(str_list)+1
+	msg = '= uploaded %s to %s' % (file_to_upload, workbook)# TODO variables
+	if verbose:
+		print(msg)
+	logging.info(msg)
 
 
 def setup():
@@ -281,7 +298,10 @@ def setup():
 		cleanup() # remove existing file
 	else:
 		os.mknod(temp_nafprod_file)
-	logging.info('= created %s' % temp_nafprod_file)
+	msg = '= created %s' % temp_nafprod_file
+	if verbose:
+		print(msg)
+	logging.info(msg)
 
 
 def cleanup():
@@ -289,11 +309,21 @@ def cleanup():
 	Remove temp nafproduction file
 	'''
 	copyfile(log+log_filename,text_file_location+'logs/'+log_filename)
-	logging.info('= %s copied to lib-tsserver' % log_filename)
+	msg = '= %s copied to lib-tsserver' % log_filename
+	if verbose:
+		print(msg)
+	logging.info(msg)
 	
 	os.remove(temp_nafprod_file)
-	logging.info('= %s removed' % temp_nafprod_file)
+	msg = '= %s removed' % temp_nafprod_file
+	if verbose:
+		print(msg)
+	logging.info(msg)
 
 
 if __name__ == "__main__":
+	parser = argparse.ArgumentParser(description='Parse NACO stats and send updates to Google Drive.')
+	parser.add_argument("-v", "--verbose", required=False, default=False, dest="verbose", action="store_true", help="Runtime feedback.")
+	args = vars(parser.parse_args())
+	verbose = args['verbose']
 	main()
