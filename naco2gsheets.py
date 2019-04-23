@@ -38,7 +38,7 @@ this_month = time.strftime('%Y%m')
 config = ConfigParser.RawConfigParser()
 cwd = os.getcwd()
 conf_dir = cwd+'/conf/' # NOTE: this has to be absolute path for cron
-config.read(conf_dir+'naco2gsheets_local.cfg')
+config.read(conf_dir+'naco2gsheets.cfg')
 temp_nafprod_file = config.get('env', 'temp_nafprof_file') # to check all that have been produced
 text_file_location = config.get('env', 'text_files') # with txt files output by macros
 log = config.get('env', 'logs') 
@@ -158,7 +158,8 @@ def make_files_to_upload(sheet_name):
 		with open(temp_nafprod_file,'rb') as temp, open(nafcsv,'wb+') as nafup:
 			temp_reader = csv.reader(temp, delimiter=',', quotechar='"')
 			nafup_writer = csv.writer(nafup, delimiter=',', quotechar='"')
-			
+			header = ['vgerid','date','type','category','field1xx']
+			nafup_writer.writerow(header)
 			for row in temp_reader:
 				month_tab = row[1][:-2]
 				record_date = row[1][:-2]
@@ -215,7 +216,7 @@ def make_files_to_upload(sheet_name):
 						online_save.append(values_to_test) # add them to a list
 						if row not in existing_lines:
 							if values_to_test in naf_prod: # if it's already in one of the NAFProduction files, flag it ...
-								row.append('ROBOTTTTTT')
+								row.append('ROBOT')
 								row.append('DONE')
 							new_lines.append(row)
 						post_naco_count += 1
@@ -262,7 +263,7 @@ def update_onlinesave():
 				rowlen = len(row) # if there's a note, the row length will be 7 (i.e. skip the ones already marked DONE or ok)
 				if to_test in naf_prod and rowlen <= 6:
 					row.append('ROBOT')
-					row.append('DONEEEEE') # TODO: change this :)
+					row.append('DONE') # TODO: change this :)
 					updated += 1
 				oswriter.writerow(row)
 
