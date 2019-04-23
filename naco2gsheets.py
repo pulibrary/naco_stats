@@ -84,7 +84,7 @@ def download_onlinesave():
 
 	s.sheets[sheet_index].to_csv(oscsv,encoding='utf-8',dialect='excel')
 
-	msg = 'OnlineSave Google Sheet saved to csv'
+	msg = '= OnlineSave Google Sheet saved to csv'
 	if verbose:
 		print(msg)
 	logging.info(msg)
@@ -259,6 +259,7 @@ def update_onlinesave():
 		oswriter = csv.writer(osout)
 		for row in osreader:
 			if row:
+				row = row[1:] # to remove pandas index
 				to_test = [row[1],row[2],row[4]] # vgerid, type, 1xx
 				rowlen = len(row) # if there's a note, the row length will be 7 (i.e. skip the ones already marked DONE or ok)
 				if to_test in naf_prod and rowlen <= 6:
