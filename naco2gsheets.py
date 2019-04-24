@@ -192,7 +192,9 @@ def make_files_to_upload(sheet_name):
 			next(osout_reader,None)
 			for line in osout_reader:
 				existing_lines_all.append(line) # full line including annotations
-				if len(line) == 7:
+				if len(line) == 8:
+					line = line[:-3] # remove the last cell (notes)
+				elif len(line) == 7:
 					line = line[:-2] # remove the last cell (DONE,ok)
 				elif len(line) == 6:
 					line = line[:-1] # remove last cell (assignment)
@@ -222,7 +224,7 @@ def make_files_to_upload(sheet_name):
 						post_naco_count += 1
 		with open(os_to_upload,'wb+') as osup:
 			osup_writer = csv.writer(osup)
-			header = ['fileid','vgerid','type','date','1xx','reviewer','is_done']
+			header = ['fileid','vgerid','type','date','1xx','reviewer','is_done','notes'] # if fields are added to gsheet, add them here
 			osup_writer.writerow(header)
 			allout = existing_lines_all + new_lines
 			allout = sorted(allout,key=itemgetter(3)) # sort by date
@@ -283,7 +285,8 @@ def upload_to_gsheets(file_to_upload,workbook,sheetname):
 	sheet = client.open(workbook).id
 
 	df = pd.read_csv(file_to_upload)
-	
+	df.fillna('', inplace=True)
+
 	d2g.upload(df,sheet,sheetname)
 
 	msg = '= uploaded %s to %s' % (file_to_upload, workbook)# TODO variables
