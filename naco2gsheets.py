@@ -300,7 +300,7 @@ def setup():
 	Create temp file for all nafproduction values
 	'''
 	if os.path.isfile(temp_nafprod_file):
-		cleanup() # remove existing file
+		os.remove(temp_nafprod_file) # remove existing file
 	else:
 		os.mknod(temp_nafprod_file)
 	msg = '= created %s' % temp_nafprod_file
