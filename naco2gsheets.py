@@ -3,6 +3,7 @@
 """
 Push locally collated NACO statistics to Google Drive.
 If running manually, adjust the cfg file and run `python naco2gsheets.py`
+If running as cronjob, set conf_dir path to absolute. 
 Requires credentials: https://console.developers.google.com/apis
 To see quotas see https://console.developers.google.com/apis
 from 20181213
@@ -75,7 +76,7 @@ def download_onlinesave():
 	'''
 	Download onlinesave for local parsing.
 	'''
-	sheets = Sheets.from_files(conf_dir+'/client_secret.json',conf_dir+'./storage.json')
+	sheets = Sheets.from_files(conf_dir+'client_secret.json',conf_dir+'storage.json')
 	fileId = online_save_id
 	url = 'https://docs.google.com/spreadsheets/d/' + fileId
 	s = sheets.get(url)
