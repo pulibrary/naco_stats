@@ -248,7 +248,7 @@ def update_onlinesave():
 	naf_prod = []
 	to_test = []
 
-	with open('naf_prod_temp.csv','r') as naftemp:
+	with open(temp_nafprod_file,'r') as naftemp:
 		naftempreader = csv.reader(naftemp)
 		for l in naftempreader:
 			l = [s.strip('"').replace('ß','ǂ') for s in l]
