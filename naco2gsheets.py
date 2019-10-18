@@ -288,6 +288,9 @@ def upload_to_gsheets(file_to_upload,workbook,sheetname):
 
 	df = pd.read_csv(file_to_upload)
 	df.fillna('', inplace=True)
+	
+	if file_to_upload == os_to_upload:
+		df[list('fileid')] = df.[list('fileid')].astype('int')
 
 	d2g.upload(df,sheet,sheetname)
 
