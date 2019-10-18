@@ -33,8 +33,8 @@ from shutil import copyfile
 http = httplib2.Http()
 
 today = time.strftime('%Y%m%d') # name log files
-this_year = time.strftime('%Y') 
-this_month = time.strftime('%Y%m') 
+this_year = time.strftime('%Y')
+this_month = time.strftime('%Y%m')
 
 config = ConfigParser.RawConfigParser()
 cwd = os.getcwd()
@@ -99,8 +99,9 @@ def make_temp_nafprod_file():
 	for n in glob.glob(text_file_location+'NAFProduction_*.txt'):
 		with open(n,'r') as statsin:
 			statsin = csv.reader(statsin, delimiter='\t',quotechar='', quoting=csv.QUOTE_NONE)
+			#print n
 			for row in statsin:
-				month_tab = row[1][:-2]
+				#print row
 				row = [s.decode('latin1').encode('utf8').strip('"').replace('ß','ǂ') for s in row] # remove quotes
 
 				# write all values to a temp file to check for those that are done within the OnlineSave file
@@ -162,7 +163,6 @@ def make_files_to_upload(sheet_name):
 			header = ['vgerid','date','type','category','field1xx']
 			nafup_writer.writerow(header)
 			for row in temp_reader:
-				month_tab = row[1][:-2]
 				record_date = row[1][:-2]
 				if record_date == this_month:
 					nafup_writer.writerow(row)
@@ -192,13 +192,14 @@ def make_files_to_upload(sheet_name):
 			osout_reader = csv.reader(osout, delimiter=',', quotechar='"')
 			next(osout_reader,None)
 			for line in osout_reader:
+				
 				existing_lines_all.append(line) # full line including annotations
 				if len(line) == 8:
-					line = line[:-3] # remove the last cell (notes)
+					line = line[:-3] # remove the last 3 cells (reviewer,is_done,notes)
 				elif len(line) == 7:
-					line = line[:-2] # remove the last cell (DONE,ok)
+					line = line[:-2] # remove the last 2 cells (reviewer,is_done)
 				elif len(line) == 6:
-					line = line[:-1] # remove last cell (assignment)
+					line = line[:-1] # remove last cell (reviewer)
 				existing_lines.append(line) # no annotations
 
 		# now loop through the OnlineSave files in the shared directory for the newer records ...
@@ -264,10 +265,10 @@ def update_onlinesave():
 			if row:
 				row = row[1:] # to remove pandas index
 				to_test = [row[1],row[2],row[4]] # vgerid, type, 1xx
-				rowlen = len(row) # if there's a note, the row length will be 7 (i.e. skip the ones already marked DONE or ok)
-				if to_test in naf_prod and rowlen <= 6:
+				rowlen = len(row) # if there's an is_done value, the row length will be 7 (i.e. skip the ones already marked DONE or ok)
+				if to_test in naf_prod and rowlen <= 5: # if there is no assigned reviewer or is_done
 					row.append('ROBOT')
-					row.append('DONE') # TODO: change this :)
+					row.append('DONE')
 					updated += 1
 				oswriter.writerow(row)
 
