@@ -38,7 +38,7 @@ this_month = time.strftime('%Y%m')
 
 config = ConfigParser.RawConfigParser()
 cwd = os.getcwd()
-conf_dir = cwd+'/conf/' # NOTE: this has to be absolute path for cron
+conf_dir = '/home/local/PRINCETON/pmgreen/naco/conf/' # NOTE: this has to be absolute path for cron
 config.read(conf_dir+'naco2gsheets.cfg')
 temp_nafprod_file = config.get('env', 'temp_nafprof_file') # to check all that have been produced
 text_file_location = config.get('env', 'text_files') # with txt files output by macros
@@ -79,8 +79,10 @@ def download_onlinesave():
 	sheets = Sheets.from_files(conf_dir+'client_secret.json',conf_dir+'storage.json')
 	fileId = online_save_id
 	url = 'https://docs.google.com/spreadsheets/d/' + fileId
+	
 	s = sheets.get(url)
 	sheet_index = 0
+	
 	oscsv = 'OnlineSave%s.csv' % this_year
 
 	s.sheets[sheet_index].to_csv(oscsv,encoding='utf-8',dialect='excel')
@@ -266,9 +268,14 @@ def update_onlinesave():
 				row = row[1:] # to remove pandas index
 				to_test = [row[1],row[2],row[4]] # vgerid, type, 1xx
 				rowlen = len(row) # if there's an is_done value, the row length will be 7 (i.e. skip the ones already marked DONE or ok)
-				if to_test in naf_prod and rowlen <= 5: # if there is no assigned reviewer or is_done
-					row.append('ROBOT')
-					row.append('DONE')
+				if to_test in naf_prod:
+					if rowlen == 6: # if there *is* an assigned reviewer but it's not been marked done
+						row.append('DONE')
+					elif rowlen == 5  # if there is no assigned reviewer or is_done
+						row.append('ROBOT')
+						row.append('DONE')
+					# if there's already a value in is_done and/or a note, leave them as-is
+				
 					updated += 1
 				oswriter.writerow(row)
 
@@ -294,7 +301,7 @@ def upload_to_gsheets(file_to_upload,workbook,sheetname):
 
 	d2g.upload(df,sheet,sheetname)
 
-	msg = '= uploaded %s to %s' % (file_to_upload, workbook)# TODO variables
+	msg = '= uploaded %s to %s' % (file_to_upload, workbook)
 	if verbose:
 		print(msg)
 	logging.info(msg)
