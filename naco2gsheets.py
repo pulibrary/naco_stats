@@ -271,7 +271,7 @@ def update_onlinesave():
 				if to_test in naf_prod:
 					if rowlen == 6: # if there *is* an assigned reviewer but it's not been marked done
 						row.append('DONE')
-					elif rowlen == 5  # if there is no assigned reviewer or is_done
+					elif rowlen == 5:  # if there is no assigned reviewer or is_done
 						row.append('ROBOT')
 						row.append('DONE')
 					# if there's already a value in is_done and/or a note, leave them as-is
@@ -297,7 +297,8 @@ def upload_to_gsheets(file_to_upload,workbook,sheetname):
 	df.fillna('', inplace=True)
 	
 	if file_to_upload == os_to_upload:
-		df[list('fileid')] = df.[list('fileid')].astype('int')
+		df = df.fillna('0')
+		df[['fileid']] = df[['fileid']].astype(int)
 
 	d2g.upload(df,sheet,sheetname)
 
