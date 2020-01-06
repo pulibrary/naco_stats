@@ -233,7 +233,8 @@ def make_files_to_upload(sheet_name):
 			allout = existing_lines_all + new_lines
 			allout = sorted(allout,key=itemgetter(3)) # sort by date
 			for new in allout:
-				osup_writer.writerow(new)
+				if new[3].startswith(this_year):
+					osup_writer.writerow(new)
 		logging.info('= wrote to  %s' % os_to_upload)
 
 		upload_to_gsheets(os_to_upload,sheet_name,this_year)
